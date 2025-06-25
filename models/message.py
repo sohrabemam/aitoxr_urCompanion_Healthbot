@@ -20,4 +20,5 @@ class Message(MessageBase):
         from_attributes = True
 
 class ChatResponse(BaseModel):
-    content: str 
+    content: str
+    remaining_responses: int 

@@ -15,10 +15,14 @@ async def check_rate_limit(user_id: str, is_paid: bool = False):
     
     print("response.data in check rate limit", response.data)
     message_count = len(response.data)
-    limit = 50 if is_paid else 50
+    limit = 50 if is_paid else 20
+    
+    remaining_responses = max(0, limit - message_count)
     
     if message_count >= limit:
         raise HTTPException(
             status_code=429,
             detail=f"Rate limit exceeded. Maximum {limit} messages per hour."
-        ) 
+        )
+    
+    return remaining_responses 

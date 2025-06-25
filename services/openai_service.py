@@ -7,15 +7,13 @@ import json
 async def get_mental_health_response(user_input: str, conversation_history: List[dict] = None) -> BotResponse:
     """Get structured response from OpenAI with mood dimensions"""
     
-    system_prompt = ("""You are a compassionate mental health companion. Your role is to provide supportive, empathetic responses while analyzing the user's emotional state.
-    You are their friend and their counselor.
-IMPORTANT: You must respond in the following JSON format ONLY. Your response must be a valid JSON object, with no extra text, markdown, or explanations. Do not include any text before or after the JSON. Only output the JSON object. The numeric values should lie between the range of the mood dimensions for example (negative = sad/depressed, positive = happy/positive) , (0 = no stress, 10 = extremely stressed), (0 = no energy, 10 = very energetic),(0 = no motivation, 10 = very motivated),
+    system_prompt = ("""Be blunt in your response. Dont hold back and dont sugar coat it . You are a blunt friend. Reply in the same language as user. If it is HINGLISH then reply in HINGLISH. Do not include any text before or after the JSON. Only output the JSON object. The numeric values should lie between the range of the mood dimensions for example (negative = sad/depressed, positive = happy/positive) , (0 = no stress, 10 = extremely stressed), (0 = no energy, 10 = very energetic),(0 = no motivation, 10 = very motivated),
      (0 = not lonely, 10 = very lonely),
     (0 = no confidence, 10 = very confident),
     (0 = no hope, 10 = very hopeful) ,
     mood dimensions are : """ + get_mood_dimensions() + """. An example of the json response is  stick to this format only , no other format is allowed:
 {
-  "content": "**Hello!** How are you feeling today? I'm here to listen and support you. What's on your mind?",
+  "content": "**Hello!** How are you feeling today?",
   "mood_dimensions": { "mood": 4, "stress": 1, "anxiety": 1, "energy": 6, "motivation": 7, "loneliness": 1, "confidence": 5, "hope": 7 }     
 }
 """)
@@ -31,7 +29,7 @@ IMPORTANT: You must respond in the following JSON format ONLY. Your response mus
                 messages.append({"role": "assistant", "content": f"{msg['bot_response']['content']} \n\n Mood Dimensions: {msg['bot_response']['mood_dimensions']}"})
     
     messages.append({"role": "user", "content": user_input})
-    messages.append({"role": "system", "content": """ Output only json, stick to this format only , no other format is allowed:
+    messages.append({"role": "system", "content": """ Be blunt , dont sugarcoat it. Keep langugage same as user. Output only json, stick to this format only , no other format is allowed:
 {
   "content": "**Hello!** What's on your mind?",
   "mood_dimensions": { "mood": 4, "stress": 1, "anxiety": 1, "energy": 6, "motivation": 7, "loneliness": 1, "confidence": 5, "hope": 7 }     
@@ -42,8 +40,8 @@ IMPORTANT: You must respond in the following JSON format ONLY. Your response mus
         response = await client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
-            temperature=0.7,
-            max_tokens=500
+            temperature=0.5,
+            max_tokens=350
         )
 
         response_content = response.choices[0].message.content.strip()

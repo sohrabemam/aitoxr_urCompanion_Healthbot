@@ -33,9 +33,10 @@ def test_create_conversation():
         print(f"❌ Error: {response.text}")
         return None
 
-def test_send_message(conversation_id):
+def test_send_message(conversation_id, is_paid=False):
     """Test sending a message to an existing conversation"""
-    print(f"\nTesting message sending to conversation {conversation_id}...")
+    user_type = "paid" if is_paid else "free"
+    print(f"\nTesting message sending to conversation {conversation_id} ({user_type} user)...")
     
     data = {
         "user_input": "I've been having trouble sleeping lately and feel anxious about tomorrow's meeting.",
@@ -44,7 +45,7 @@ def test_send_message(conversation_id):
     
     params = {
         "user_id": TEST_USER_ID,
-        "is_paid": False
+        "is_paid": is_paid
     }
     
     response = requests.post(f"{BASE_URL}/messages/", json=data, params=params)
@@ -54,8 +55,11 @@ def test_send_message(conversation_id):
         result = response.json()
         print("✅ Message sent successfully!")
         print(f"Bot Response: {result['content']}")
+        print(f"Remaining Responses: {result['remaining_responses']}")
+        return result
     else:
         print(f"❌ Error: {response.text}")
+        return None
 
 def test_get_conversation_messages(conversation_id):
     """Test retrieving messages from a conversation"""
@@ -171,6 +175,7 @@ def test_multiple_messages_for_analysis(conversation_id):
             result = response.json()
             print(f"✅ Message {i} sent successfully!")
             print(f"Bot Response: {result['content'][:100]}...")
+            print(f"Remaining Responses: {result['remaining_responses']}")
             
             # After 5 messages, check if analysis was triggered
             if i % 5 == 0:
@@ -181,6 +186,144 @@ def test_multiple_messages_for_analysis(conversation_id):
         else:
             print(f"❌ Error sending message {i}: {response.text}")
 
+def test_rate_limiting():
+    """Test rate limiting functionality for free users"""
+    print(f"\nTesting rate limiting for free user...")
+    
+    # Create a new conversation for rate limiting test
+    conversation_data = {
+        "title": "Rate Limit Test Conversation",
+        "first_message": "Testing rate limits."
+    }
+    
+    params = {
+        "user_id": TEST_USER_ID,
+        "is_paid": False
+    }
+    
+    response = requests.post(f"{BASE_URL}/conversations/", json=conversation_data, params=params)
+    if response.status_code != 200:
+        print("❌ Failed to create conversation for rate limit test")
+        return
+    
+    conversation_id = response.json()['id']
+    
+    # Send messages until we hit the rate limit (20 for free users)
+    message_count = 0
+    while message_count < 25:  # Try to exceed the limit
+        data = {
+            "user_input": f"Test message {message_count + 1} for rate limiting.",
+            "conversation_id": conversation_id
+        }
+        
+        response = requests.post(f"{BASE_URL}/messages/", json=data, params=params)
+        
+        if response.status_code == 200:
+            result = response.json()
+            message_count += 1
+            print(f"Message {message_count}: Remaining responses: {result['remaining_responses']}")
+            
+            if result['remaining_responses'] == 0:
+                print("✅ Rate limit reached successfully!")
+                break
+        elif response.status_code == 429:
+            print("✅ Rate limit exceeded - 429 status code received")
+            print(f"Error message: {response.json()['detail']}")
+            break
+        else:
+            print(f"❌ Unexpected error: {response.text}")
+            break
+    
+    print(f"Total messages sent before rate limit: {message_count}")
+
+def test_paid_user_benefits():
+    """Test paid user benefits (higher rate limits and conversation history)"""
+    print(f"\nTesting paid user benefits...")
+    
+    # Create a new conversation for paid user test
+    conversation_data = {
+        "title": "Paid User Test Conversation",
+        "first_message": "Testing paid user features."
+    }
+    
+    params = {
+        "user_id": TEST_USER_ID,
+        "is_paid": True
+    }
+    
+    response = requests.post(f"{BASE_URL}/conversations/", json=conversation_data, params=params)
+    if response.status_code != 200:
+        print("❌ Failed to create conversation for paid user test")
+        return
+    
+    conversation_id = response.json()['id']
+    
+    # Send a few messages to test the higher rate limit
+    for i in range(5):
+        data = {
+            "user_input": f"Paid user test message {i + 1}.",
+            "conversation_id": conversation_id
+        }
+        
+        response = requests.post(f"{BASE_URL}/messages/", json=data, params=params)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"Paid user message {i + 1}: Remaining responses: {result['remaining_responses']}")
+            # Paid users should have 50 - (i + 1) remaining responses
+            expected_remaining = 50 - (i + 1)
+            if result['remaining_responses'] == expected_remaining:
+                print(f"✅ Correct remaining responses for paid user: {expected_remaining}")
+            else:
+                print(f"❌ Expected {expected_remaining}, got {result['remaining_responses']}")
+        else:
+            print(f"❌ Error sending paid user message: {response.text}")
+
+def test_conversation_history_limits():
+    """Test that conversation history is limited correctly for free vs paid users"""
+    print(f"\nTesting conversation history limits...")
+    
+    # Create a conversation for history testing
+    conversation_data = {
+        "title": "History Limit Test Conversation",
+        "first_message": "Testing conversation history limits."
+    }
+    
+    # Test free user history limit (5 messages)
+    print("Testing free user conversation history limit (5 messages)...")
+    params = {
+        "user_id": TEST_USER_ID,
+        "is_paid": False
+    }
+    
+    response = requests.post(f"{BASE_URL}/conversations/", json=conversation_data, params=params)
+    if response.status_code != 200:
+        print("❌ Failed to create conversation for history test")
+        return
+    
+    conversation_id = response.json()['id']
+    
+    # Send 10 messages to test history limit
+    for i in range(10):
+        data = {
+            "user_input": f"History test message {i + 1} for free user.",
+            "conversation_id": conversation_id
+        }
+        
+        response = requests.post(f"{BASE_URL}/messages/", json=data, params=params)
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"Free user message {i + 1}: Remaining responses: {result['remaining_responses']}")
+        else:
+            print(f"❌ Error sending free user message: {response.text}")
+    
+    # Note: The conversation history limit is internal to the API and affects
+    # how many previous messages are sent to the AI model, but doesn't affect
+    # the API response directly. This is tested implicitly through the message
+    # sending functionality.
+    print("✅ Conversation history limit test completed (limit is applied internally)")
+
 def main():
     print("🧠 Mental Health Chat API Test")
     print("=" * 50)
@@ -189,22 +332,34 @@ def main():
     conversation_id = test_create_conversation()
     
     if conversation_id:
-        # Test 2: Send initial message
-        test_send_message(conversation_id)
+        # Test 2: Send initial message (free user)
+        test_send_message(conversation_id, is_paid=False)
         
-        # Test 3: Send multiple messages to trigger analysis
+        # Test 3: Send message as paid user
+        test_send_message(conversation_id, is_paid=True)
+        
+        # Test 4: Test rate limiting for free users
+        test_rate_limiting()
+        
+        # Test 5: Test paid user benefits
+        test_paid_user_benefits()
+        
+        # Test 6: Test conversation history limits
+        test_conversation_history_limits()
+        
+        # Test 7: Send multiple messages to trigger analysis
         test_multiple_messages_for_analysis(conversation_id)
         
-        # Test 4: Manual conversation analysis
+        # Test 8: Manual conversation analysis
         test_analyze_conversation(conversation_id)
         
-        # Test 5: Get conversation scores
+        # Test 9: Get conversation scores
         test_get_conversation_scores(conversation_id)
         
-        # Test 6: Get conversation messages
+        # Test 10: Get conversation messages
         test_get_conversation_messages(conversation_id)
         
-        # Test 7: Get user conversations
+        # Test 11: Get user conversations
         test_get_user_conversations()
     
     print("\n" + "=" * 50)

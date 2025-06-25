@@ -1,14 +1,16 @@
 from typing import List, Dict, Any
 from core.config import supabase
 
-async def get_conversation_history(conversation_id: str) -> List[dict]:
-    response = supabase.table("messages") \
+async def get_conversation_history(conversation_id: str, limit: int = None) -> List[dict]:
+    query = supabase.table("messages") \
         .select("user_input", "bot_response") \
         .eq("conversation_id", conversation_id) \
-        .order("created_at") \
-        .execute()
-    
-    return response.data
+        .order("created_at", desc=True)
+    if limit:
+        query = query.limit(limit)
+    response = query.execute()
+    # Reverse to maintain chronological order
+    return list(reversed(response.data))
 
 async def update_conversation_scores_in_db(conversation_id: str, scores: Dict[str, Any]) -> bool:
     """Update conversation scores in Supabase"""

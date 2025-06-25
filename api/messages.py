@@ -32,9 +32,10 @@ async def create_message(
     - Saves the new message and bot response to the database.
     - Triggers a background task to analyze conversation scores.
     """
-    await check_rate_limit(user_id, is_paid)
+    remaining_responses = await check_rate_limit(user_id, is_paid)
     
-    conversation_history = await get_conversation_history(message.conversation_id)
+    history_limit = 15 if is_paid else 5
+    conversation_history = await get_conversation_history(message.conversation_id, limit=history_limit)
     
     bot_response: BotResponse = await get_mental_health_response(
         message.user_input,
@@ -55,7 +56,7 @@ async def create_message(
         if len(conversation_history) % 5 == 0 and len(conversation_history) > 0:
             background_tasks.add_task(run_analysis_and_update, message.conversation_id)
             
-        return ChatResponse(content=bot_response.content)
+        return ChatResponse(content=bot_response.content, remaining_responses=remaining_responses - 1)
         
     except Exception as e:
         print(f"Error saving message: {e}")
